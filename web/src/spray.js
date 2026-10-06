@@ -1,7 +1,7 @@
 // Spray and mist. Drops are thrown off the lip's tip along its direction of travel and fall under gravity; where the
 // lip lands, a sheet of splash goes up; fine mist hangs in the tube and catches the light through the lip.
 // Each drop is a pure function of its own seed and the time (no simulation state), so any frame can be drawn alone.
-import { section, phiAt } from './wave.js';
+import { section, phiAt, SCALE, bendZ } from './wave.js';
 
 const vert = /* glsl */`
 attribute float size; attribute float alpha;
@@ -46,7 +46,7 @@ export class Spray {
     const key = Math.round(x * 4);
     if (this.cache.has(key)) return this.cache.get(key);
     const s = section(phiAt(key / 4, t));
-    const v = { z: s.lipTip[0], y: s.lipTip[1], curl: s.curl };
+    const v = { z: s.lipTip[0] + bendZ(key / 4), y: s.lipTip[1], curl: s.curl, zb: bendZ(key / 4) };
     this.cache.set(key, v);
     return v;
   }
@@ -79,7 +79,7 @@ export class Spray {
       const x0 = xc - 18 + hash(i * 3.7) * 40;
       const tp = this.tip(x0, born);
       if (tp.curl < 0.05 || tp.curl > 0.95) continue;
-      const cz = 0.25 + 0.45 * tp.curl, cy = 3.0;
+      const cz = (0.25 + 0.45 * tp.curl) * SCALE + tp.zb, cy = 3.0 * SCALE;
       const x = x0 + (hash(i * 1.9) - 0.5) * 0.8, z = cz - (2.5 + 2.5 * hash(i * 6.3)) * age, y = cy + (0.9 + 0.9 * hash(i * 4.9)) * age - 1.2 * age * age;
       const a = (1 - age / life) * 0.3 * Math.sin(Math.PI * Math.min(1, tp.curl * 1.5));
       put(x, y, z, 0.06 + 0.1 * hash(i * 2.2) + age * 0.12, a);
@@ -90,8 +90,8 @@ export class Spray {
       const x = xc - 6 + ((hash(i * 1.7) * 16 + t * 0.6) % 16);
       const tp = this.tip(x, t);
       if (tp.curl < 0.6) continue;
-      const z = 0.6 + hash(i * 3.3) * (tp.z - 0.6);
-      const y = 0.15 + hash(i * 6.1) * 2.3 + 0.08 * Math.sin(t * 1.3 + i);
+      const z = 0.6 * SCALE + tp.zb + hash(i * 3.3) * (tp.z - tp.zb - 0.6 * SCALE);
+      const y = 0.15 + hash(i * 6.1) * 2.3 * SCALE + 0.08 * Math.sin(t * 1.3 + i);
       put(x, y, z, 0.05 + 0.08 * hash(i * 8.8), 0.035);
     }
     // the spit: a blast of fine spray and mist down the tube's axis, overtaking the rider and leaving through the eye
@@ -104,7 +104,7 @@ export class Spray {
         const x = xc - 4 + p * 16 + (hash(i * 4.1) - 0.5) * 3;
         const r = (0.15 + 1.05 * Math.sqrt(hash(i * 5.3))) * (0.6 + 0.9 * p), th = hash(i * 6.7) * 6.283;
         const mist = i % 5 === 0;     // one in five is a soft puff of mist, the rest fine drops
-        put(x, Math.max(0.1, 1.25 + r * Math.sin(th)), 1.95 + r * Math.cos(th),
+        put(x, Math.max(0.1, 1.25 * SCALE + r * SCALE * Math.sin(th)), 1.95 * SCALE + r * SCALE * Math.cos(th),
           mist ? 0.35 + 0.5 * p : 0.008 + 0.012 * hash(i * 7.3), mist ? 0.05 * (1 - p) : 0.5 * (1 - p * 0.7));
       }
     }
