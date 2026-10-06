@@ -28,7 +28,7 @@ void main(){
 function hash(i) { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); }
 
 export class Spray {
-  constructor(THREE, n = 14000) {
+  constructor(THREE, n = 17500) {
     this.n = n;
     const g = new THREE.BufferGeometry();
     this.pos = new Float32Array(n * 3); this.size = new Float32Array(n); this.alpha = new Float32Array(n);
@@ -83,6 +83,24 @@ export class Spray {
       const x = x0 + (hash(i * 1.9) - 0.5) * 0.8, z = cz - (2.5 + 2.5 * hash(i * 6.3)) * age, y = cy + (0.9 + 0.9 * hash(i * 4.9)) * age - 1.2 * age * age;
       const a = (1 - age / life) * 0.3 * Math.sin(Math.PI * Math.min(1, tp.curl * 1.5));
       put(x, y, z, 0.06 + 0.1 * hash(i * 2.2) + age * 0.12, a);
+    }
+    // the lip's leading edge is not clean: it frays into a fringe of spray and mist that trails off it as it flies
+    const N5 = 3200;
+    for (let i = 0; i < N5; i++) {
+      const life = 0.7, born = t - hash(i * 4.7) * life;
+      const age = t - born;
+      const x0 = xc - 10 + hash(i * 6.1) * 36;
+      const tp = this.tip(x0, born);
+      if (tp.curl < 0.2 || tp.y < 0.4) continue;
+      const fine = i % 3 !== 0;                  // two in three are droplets, the rest soft puffs of mist
+      const r = hash(i * 9.7), th = hash(i * 1.3) * 6.283;
+      const x = x0 + (hash(i * 2.9) - 0.5) * 0.6;
+      const y = tp.y + Math.sin(th) * 0.35 * r - 2.5 * age * age + 0.6 * age * hash(i * 3.9);
+      const z = tp.z + Math.cos(th) * 0.35 * r + (0.6 + 1.4 * hash(i * 7.9)) * age;
+      if (y < 0.05) continue;
+      const fade = (1 - age / life) * Math.min(1, tp.curl * 2);
+      if (fine) put(x, y, z, 0.01 + 0.025 * hash(i * 5.5), 0.6 * fade);
+      else put(x, y, z, 0.18 + 0.35 * hash(i * 8.1) + age * 0.4, 0.07 * fade);
     }
     // mist in the tube: slow, faint, larger
     const N2 = 2600;

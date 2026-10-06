@@ -7,7 +7,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { Wave, breakX, LPHI, SCALE, BEND, bendZ } from './wave.js';
+import { Wave, breakX, LPHI, SCALE, BEND, bendZ, PEAK } from './wave.js';
 import { waveVert, waveFrag, seaVert, seaFrag, skyVert, skyFrag } from './water.js';
 import { Spray } from './spray.js';
 
@@ -24,7 +24,7 @@ const camera = new THREE.PerspectiveCamera(70, 16 / 9, 0.05, 40000);
 
 // the Sun: on the beach side and ahead, so it shines through the lip toward a rider inside
 const SUN = new THREE.Vector3(0.25, 0.92, 0.32).normalize();
-const U = { uDbg: { value: +(new URLSearchParams(location.search).get('dbg') || 0) }, uT: { value: 0 }, uCam: { value: new THREE.Vector3() }, uSun: { value: SUN }, uSunCol: { value: new THREE.Color(1.0, 0.97, 0.93).multiplyScalar(2.4) } };
+const U = { uMilk: { value: 1 }, uDbg: { value: +(new URLSearchParams(location.search).get('dbg') || 0) }, uT: { value: 0 }, uCam: { value: new THREE.Vector3() }, uSun: { value: SUN }, uSunCol: { value: new THREE.Color(1.0, 0.97, 0.93).multiplyScalar(2.4) } };
 
 const skyMesh = new THREE.Mesh(new THREE.SphereGeometry(35000, 48, 24), new THREE.ShaderMaterial({ uniforms: U, vertexShader: skyVert, fragmentShader: skyFrag, side: THREE.BackSide, depthWrite: false }));
 skyMesh.renderOrder = -10;
@@ -100,18 +100,24 @@ function kf(K, t) {
   return (2 * u3 - 3 * u2 + 1) * v0 + (u3 - 2 * u2 + u) * m0 + (-2 * u3 + 3 * u2) * v1 + (u3 - u2) * m1;
 }
 // how far the curl has gone where the camera is
-const PHI = [[0, 0.62], [3.2, 0.72], [3.8, 0.95], [4.3, 1.15], [5.2, 1.25], [6.0, 0.98], [6.6, 0.78], [7.2, 0.58], [7.8, 0.45], [8.5, 0.35], [10, 0.3]];
+const PHI = [[0, 0.36], [3.0, 0.45], [3.4, 0.52], [4.0, 0.8], [4.6, 1.1], [5.4, 1.25], [6.0, 0.98], [6.6, 0.78], [7.2, 0.58], [7.8, 0.45], [8.5, 0.35], [10, 0.3]];
 // where the camera is across the wave (z, toward the beach) and its height: out in front while the lip throws,
 // swept back under it as the wave comes on, then carried forward out through the window
-const CZ = [[0, 5.2], [3.2, 5.0], [4.3, 4.7], [6.0, 4.6], [6.6, 4.9], [7.2, 6.0], [7.8, 8.5], [8.5, 11.0], [10, 13.0]];
+const CZ = [[0, 5.2], [3.2, 5.0], [4.3, 4.7], [6.0, 4.6], [6.6, 4.8], [7.2, 5.6], [7.8, 8.0], [8.5, 12.0], [10, 15.0]];
 const CY = [[0, 1.0], [3.2, 1.05], [4.3, 0.95], [6.0, 0.9], [7.0, 1.0], [8.5, 1.1], [10, 1.1]];
 // where it looks: yaw from the beach toward the open end (+x), pitch up
 const YAW = [[0, 0.75], [3.2, 0.8], [4.3, 0.95], [6.0, 1.0], [6.6, 1.0], [7.2, 0.95], [7.8, 0.6], [8.5, 0.3], [10, 0.25]];
 const PITCH = [[0, 0.22], [3.2, 0.24], [4.3, 0.16], [6.0, 0.1], [7.0, 0.08], [8.5, 0.06], [10, 0.06]];
 const ROLL = [[0, -0.2], [4.3, -0.16], [7.2, -0.12], [8.5, -0.22], [10, -0.24]];
 const ridePhi = (t) => kf(PHI, t);
+// how strongly the lip ahead-left throws before the rest (the slanted edge as it comes over)
+const PEAKA = [[0, 0.75], [4.0, 0.75], [4.8, 0.35], [5.6, 0.0], [10, 0.0]];
+const PEAK_OFF = 12, PEAK_W = 10;
+const PEAKB = [[0, 0.9], [4.0, 0.9], [4.8, 0.4], [5.6, 0.0], [10, 0.0]];
+const peakAt = (t) => kf(PEAKA, t) * Math.tanh(-PEAK_OFF / PEAK_W) + kf(PEAKB, t) * (Math.tanh(1) - 1) * 0.5;   // the steps' value at the camera
 const PHIQ = q.get('phi'); const ridePhiQ = PHIQ ? () => +PHIQ : ridePhi;
-const riderX = (t) => breakX(t) - ridePhiQ(t) * LPHI;
+// the camera's own curl is PHI; the reef's step (PEAK) is undone at the camera so PHI stays what it says
+const riderX = (t) => breakX(t) - (ridePhiQ(t) - peakAt(t)) * LPHI;
 BEND.x0 = riderX(4.5);   // the reef bends the wave toward the beach ahead of the camera
 const CAMQ = q.get('cam') && q.get('cam').split(',').map(Number);
 const look = { yaw: 0, pitch: 0, held: false };
@@ -157,7 +163,7 @@ function placeCamera(t) {
     pos = v3(x + CAMQ[0], CAMQ[1], CAMQ[2]); aim = v3(x + CAMQ[3], CAMQ[4], CAMQ[5]); fov = CAMQ[6] || 70;
   } else {
     pos = v3(x, kf(CY, t), kf(CZ, t) + bendZ(x));
-    const yaw = kf(YAW, t), pitch = kf(PITCH, t);
+    const yaw = kf(YAW, t) + +(q.get('yo') || 0), pitch = kf(PITCH, t) + +(q.get('po') || 0);
     aim = pos.clone().add(v3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)));
     roll = kf(ROLL, t);
   }
@@ -177,6 +183,7 @@ function placeCamera(t) {
 
 function frame(t) {
   const x = placeCamera(t);
+  PEAK.x0 = x; PEAK.amp = q.has('pa') ? +q.get('pa') : kf(PEAKA, t); PEAK.off = PEAK_OFF; PEAK.w = PEAK_W; PEAK.back = kf(PEAKB, t);
   wave.update(t, x);
   // two spits: one blows the rider out (9.6-12 s), one comes out of the tube while we look back (15.5-18.5 s)
   spray.update(t, riderX(t), 0);
@@ -185,6 +192,7 @@ function frame(t) {
   lens.uniforms.uDrops.value = 0;
   spray.u.uPx.value = renderer.domElement.height / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
   U.uT.value = t;
+  U.uMilk.value = 0.35 + 0.65 * ss(3.4, 4.3, t) * (1 - ss(7.0, 7.8, t));
   U.uCam.value.copy(camera.position);
   skyMesh.position.copy(camera.position);
   composer.render();

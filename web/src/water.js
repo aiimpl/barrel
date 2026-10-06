@@ -73,10 +73,10 @@ vec3 skyCol(vec3 d){
   // dark-green ridges in front of it, cloud sitting on the peaks, and the reef's white line at their foot
   float az = atan(d.z, d.x);
   float span = smoothstep(-0.5, -0.1, az) * (1. - smoothstep(2.6, 3.05, az));
-  float f1 = fbm(vec2(az * 2.4, 0.5)), f2 = fbm(vec2(az * 7.0, 2.3)), f3 = fbm(vec2(az * 26., 4.1));
+  float f1 = fbm(vec2(az * 1.7, 0.5)), f2 = vnoise(vec2(az * 7.0, 2.3)) * 0.7 + vnoise(vec2(az * 15.0, 6.1)) * 0.3, f3 = vnoise(vec2(az * 40., 4.1));
   float sharp = 1. - abs(f2 * 2. - 1.);
-  float near = 1.5 * (2.0 + 8.0 * smoothstep(0.3, 0.75, f1) + 3.0 * sharp * sharp * smoothstep(0.3, 0.6, f1) + 0.12 * f3) * span;
-  float far = 1.3 * (5.0 + 8.0 * smoothstep(0.25, 0.7, fbm(vec2(az * 1.7, 7.7))) + 0.3 * f3) * span;
+  float near = 1.9 * (2.0 + 8.0 * smoothstep(0.3, 0.75, f1) + 2.0 * sharp * sharp * smoothstep(0.3, 0.6, f1) + 0.1 * f3) * span;
+  float far = 1.3 * (5.0 + 8.0 * smoothstep(0.25, 0.7, fbm(vec2(az * 1.7, 7.7))) + 0.2 * f3) * span;
   if (e > 0. && e < far) {
     float k = e / far;
     vec3 fm = mix(srgb2lin(vec3(112, 132, 150)), srgb2lin(vec3(150, 168, 182)), k * 0.6 + 0.2 * fbm(vec2(az * 20., e * 2.)));
@@ -116,6 +116,7 @@ uniform float uT;
 uniform vec3 uCam;
 uniform vec3 uSunCol;
 uniform float uDbg;
+uniform float uMilk;   // how much air shows in the lip: full from inside the tube, less seen from outside
 varying vec3 vW; varying vec3 vN; varying float vTh; varying float vPart; varying float vFoam; varying vec2 vUv; varying float vOcc;
 ${noise}
 ${sky}
@@ -197,7 +198,7 @@ void main(){
   vec3 body = vec3(0.02, 0.05, 0.12) * (0.7 + 0.3 * max(n.y, 0.)) + vec3(0.03, 0.1, 0.2) * exp(-th * 0.4) * (1. + 0.6 * lip);
   vec3 col = mix(body + glow, refl, F);
   // air in the thin sheet scatters light: milky blue-white patches
-  col = mix(col, vec3(0.66, 0.72, 0.72) * (0.9 + 0.1 * b1 + 0.1 * b3) * (0.9 + 0.2 * phase), (0.08 + 0.5 * aer) * lip * exp(-thv * 0.35));
+  col = mix(col, vec3(0.66, 0.72, 0.72) * (0.9 + 0.1 * b1 + 0.1 * b3) * (0.9 + 0.2 * phase), (0.08 + 0.5 * aer) * lip * exp(-thv * 0.35) * uMilk);
   // the ripples' relief over the whole sheet (light bent and shaded by them)
   col *= mix(1., clamp(0.97 + 0.5 * (ch - 0.5) + 0.25 * (ch3 - 0.5), 0.78, 1.15), lip * 0.8);
   // the Sun's glints
@@ -247,12 +248,13 @@ void main(){
   vec3 v = normalize(uCam - vW);
   vec2 p = vW.xz;
   float e = 0.08;
-  float h0 = fbm(p * 1.4 + vec2(uT * 0.2, uT * 0.1)), hx = fbm((p + vec2(e, 0.)) * 1.4 + vec2(uT * 0.2, uT * 0.1)), hz = fbm((p + vec2(0., e)) * 1.4 + vec2(uT * 0.2, uT * 0.1));
+  vec2 so = vec2(uT * 0.2, uT * 0.1);
+  float h0 = fbm(p * 1.4 + so) + 0.5 * fbm(p * 4.3 - so * 1.7), hx = fbm((p + vec2(e, 0.)) * 1.4 + so) + 0.5 * fbm((p + vec2(e, 0.)) * 4.3 - so * 1.7), hz = fbm((p + vec2(0., e)) * 1.4 + so) + 0.5 * fbm((p + vec2(0., e)) * 4.3 - so * 1.7);
   vec3 n = normalize(vec3(-(hx - h0) / e * 0.16, 1., -(hz - h0) / e * 0.16));
   float dist = length(uCam - vW);
   n = normalize(mix(n, vec3(0., 1., 0.), smoothstep(30., 400., dist)));
   float F = 0.02 + 0.98 * pow(1. - max(dot(n, v), 0.), 5.);
-  vec3 col = mix(vec3(0.015, 0.045, 0.11), skyCol(reflect(-v, n)) * 0.42, F);
+  vec3 col = mix(vec3(0.015, 0.045, 0.11), skyCol(reflect(-v, n)) * 0.32, F);
   col += uSunCol * pow(max(dot(n, normalize(uSun + v)), 0.), 400.) * 3.;
   col = mix(col, skyCol(normalize(vec3(-v.x, 0.01, -v.z))), 1. - exp(-dist * 0.0012));
   gl_FragColor = vec4(col, 1.);

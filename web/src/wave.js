@@ -17,7 +17,13 @@ export const NSEC = BACK + LIP + TIP + LIP + FACE + FRONT;   // points per cross
 
 // the break point (where phi = 0) moves along the wave
 export const breakX = (t) => -10 + PEEL * t;
-export const phiAt = (x, t) => (breakX(t) - x) / LPHI;
+// the reef's shape: around x0 the lip ahead (+x) throws early and the one behind late, so as it comes over the
+// camera it lands on one side first and its edge runs across the view on a slant (amp set by the film)
+export const PEAK = { x0: 0, amp: 0, off: 0, w: 6, back: 0 };
+export const phiAt = (x, t) => {
+  return (breakX(t) - x) / LPHI + PEAK.amp * Math.tanh((x - PEAK.x0 - PEAK.off) / PEAK.w)
+    + PEAK.back * (Math.tanh((x - PEAK.x0 + 6) / 6) - 1) * 0.5;   // and behind it, later still
+};
 // the reef is not straight: ahead of x0 the wave bends round toward the beach (so from inside, looking at the beach,
 // the open end is off to the left), and a little behind it too
 export const BEND = { x0: 0, ahead: 0.008, behind: 0.003 };
@@ -80,7 +86,7 @@ export function section(phi, w = 0) {
   for (let i = 0; i <= LIP; i++) {
     const [z, y] = cl[i], a = ang[i], t = thick(i);
     P.push([z - Math.sin(a) * t * 0.5, y + Math.cos(a) * t * 0.5]); TH.push(t); PART.push(1);
-    FOAM.push(smooth(0.93, 1, i / LIP) * 0.35 * smooth(0.05, 0.4, curl));
+    FOAM.push(smooth(0.95, 1, i / LIP) * 0.2 * smooth(0.05, 0.4, curl));
   }
   // round the tip: a half circle in the lip's own frame
   {
@@ -89,14 +95,14 @@ export function section(phi, w = 0) {
     for (let k = 1; k <= TIP; k++) {
       const th = Math.PI * (k / (TIP + 1));
       P.push([z + (nx * Math.cos(th) + tx * Math.sin(th)) * t * 0.5, y + (ny * Math.cos(th) + ty * Math.sin(th)) * t * 0.5]);
-      TH.push(t); PART.push(1); FOAM.push(0.35 * smooth(0.05, 0.4, curl));
+      TH.push(t); PART.push(1); FOAM.push(0.2 * smooth(0.05, 0.4, curl));
     }
   }
   // underside of the lip, tip back to root
   for (let i = LIP; i >= 0; i--) {
     const [z, y] = cl[i], a = ang[i], t = thick(i);
     P.push([z + Math.sin(a) * t * 0.5, y - Math.cos(a) * t * 0.5]); TH.push(t); PART.push(2);
-    FOAM.push(smooth(0.93, 1, i / LIP) * 0.35 * curl);
+    FOAM.push(smooth(0.95, 1, i / LIP) * 0.2 * curl);
   }
   // the face: from under the crest down to the trough. It leaves the lip's underside in the same direction the
   // underside was heading (back and a little down), so wall and ceiling are one smooth curve; then it bends down
