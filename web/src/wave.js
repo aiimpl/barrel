@@ -31,10 +31,11 @@ function bez(p0, p1, p2, p3, u) {
 // the part of the water each point is on, and foam
 export function section(phi, w = 0) {
   const P = [], TH = [], PART = [], FOAM = [];
-  const p = Math.min(Math.max(phi, -0.6), 2.8);
+  const p = Math.min(Math.max(phi, -2.0), 2.8);
   const curl = smooth(0, 1, p);                       // 0 .. 1 as the lip throws
   const crestZ = 0.25 + 0.45 * curl + 0.08 * w;       // the crest pitches forward as it throws
-  const Hc = H * (1 + 0.04 * w) * (p < 0 ? lerp(0.82, 1, smooth(-0.6, 0, p)) : 1);
+  // ahead of the break the shoulder is lower and its face leans back (a slope, not a cliff), easing to the peak
+  const Hc = H * (1 + 0.04 * w) * (p < 0 ? lerp(0.55, 1, smooth(-2.0, 0, p)) : 1);
   const C = [crestZ, Hc];
   // the lip's centreline: leaves the crest heading forward and a little up, its curvature grows toward the tip
   const L = (0.15 + 5.2 * curl) * (1 + 0.06 * w);      // lip length (m): long enough to land on the water at curl 1
@@ -100,7 +101,7 @@ export function section(phi, w = 0) {
   {
     const top = P[P.length - 1], prev = P[P.length - 2];
     const dz = top[0] - prev[0], dy = top[1] - prev[1], dl = Math.hypot(dz, dy) || 1;
-    const zt = 1.35 + 0.35 * curl;                      // trough, in front of the face
+    const zt = 1.35 + 0.35 * curl + 1.8 * smooth(0, -1.6, p);   // trough, in front of the face (further out on the shoulder)
     const reach = 0.9 + 0.5 * curl;                     // how far back the wall bulges under the crest
     const p1 = [top[0] + dz / dl * reach, top[1] + dy / dl * reach];
     const p2 = [zt - 1.1 - 0.6 * curl, 0.0];             // level at the trough, so the face meets the sea without a crease

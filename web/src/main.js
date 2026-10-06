@@ -128,8 +128,9 @@ function placeCamera(t) {
     // out in the open: glide on with the wave on the left and the island ahead, slowing down
     const u = ss(13.0, 14.5, t);
     x = riderX(13.0) + PEEL_AHEAD * (t - 13.0) * (1 - 0.3 * u);
-    pos = v3(x, 1.2 + 0.15 * u, 5.6 + 0.8 * u);
-    aim = v3(x + 12, 2.4 - 0.2 * u, 7.6 + 0.6 * u); fov = 92;
+    const away = ss(12.6, 14.5, t);                     // carried out onto the flat water, away from the face
+    pos = v3(x, 1.2 + 0.4 * away, 5.6 + 4.5 * away);
+    aim = v3(x + 12, 2.4 + 1.6 * away, 7.6 + 2.0 * away); fov = 92;
     roll = 0.04 * Math.sin(t * 1.1);
     lens.uniforms.uK.value = 0.5;
   }
@@ -150,8 +151,8 @@ function frame(t) {
   // two spits: one blows the rider out (9.6-12 s), one comes out of the tube while we look back (15.5-18.5 s)
   spray.update(t, t < 13 ? riderX(t) : breakX(t) - 1.1 * LPHI, t < 13 ? ss(9.6, 12.0, t) : 0);
   lens.uniforms.uT.value = t;
-  lens.uniforms.uMist.value = 0.8 * ss(10.2, 10.8, t) * (1 - ss(11.2, 12.2, t));
-  lens.uniforms.uDrops.value = 0.45 * ss(10.4, 11.2, t) * (1 - ss(14.5, 16.0, t));
+  lens.uniforms.uMist.value = 0.35 * ss(10.2, 10.8, t) * (1 - ss(11.2, 12.2, t));   // a veil, not a whiteout: the spit is the spray flying past
+  lens.uniforms.uDrops.value = 0;   // drops on the glass read as bubbles floating on the sea
   spray.u.uPx.value = renderer.domElement.height / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
   U.uT.value = t;
   U.uCam.value.copy(camera.position);

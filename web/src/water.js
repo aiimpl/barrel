@@ -123,7 +123,7 @@ void main(){
   vec3 t1 = vec3(1., 0., 0.), t2 = normalize(cross(n, t1));
   // big, slow patches so the streaks are not uniform
   float patchy = 0.45 + 1.1 * fbm(vec2(vUv.x * 0.35 + 7., vUv.y * 0.25 - uT * 0.6));
-  float amp = 0.035 * (1. - lip) * patchy * (1. - seaK);
+  float amp = 0.016 * (1. - lip) * patchy * (1. - seaK);
   n = normalize(n - (t1 * (ax - a0) + t2 * (ay - a0)) / e * amp);
   // the sea: world-space ripples like the open-sea plane
   {
