@@ -70,7 +70,7 @@ export class Spray {
       const x = x0 + vx * age, z = tp.z + vz * age, y = tp.y + vy * age - 4.9 * age * age;
       if (y < -0.05) continue;
       const a = (1 - age / life) * 0.55 * tp.curl;
-      put(x, y, z, 0.012 + 0.02 * hash(i * 4.4), a);
+      put(x, y, z, 0.04 + 0.07 * hash(i * 4.4), a * 1.2);
     }
     // offshore wind: a veil of spray torn off the crest, blown back over the wave (toward -z) and rising
     const N4 = 6000;
@@ -106,7 +106,7 @@ export class Spray {
         const r = (0.15 + 1.05 * Math.sqrt(hash(i * 5.3))) * (0.6 + 0.9 * p), th = hash(i * 6.7) * 6.283;
         const mist = i % 5 === 0;     // one in five is a soft puff of mist, the rest fine drops
         put(x, Math.max(0.1, 1.25 * SCALE + r * SCALE * Math.sin(th)), 1.95 * SCALE + r * SCALE * Math.cos(th),
-          mist ? 0.35 + 0.6 * p : 0.012 + 0.02 * hash(i * 7.3), mist ? 0.08 * (1 - p) : 0.8 * (1 - p * 0.7));
+          mist ? 0.35 + 0.6 * p : 0.05 + 0.08 * hash(i * 7.3), mist ? 0.08 * (1 - p) : 0.8 * (1 - p * 0.7));
       }
     }
     for (; k < this.n; k++) alpha[k] = 0;

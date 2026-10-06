@@ -176,7 +176,7 @@ export class Wave {
     for (let r = 0; r < this.rows; r++) {
       const x = this.rowX(r, xc);
       // slow variation along the crest so the lip is not a perfect extrusion
-      const w = Math.sin(x * 0.31 + 1.3) * 0.5 + Math.sin(x * 0.77 + 4.1) * 0.3 + Math.sin(x * 2.3 + 0.7) * 0.15 + Math.sin(x * 5.1 + 2.2) * 0.08;
+      const w = Math.sin(x * 0.31 + 1.3) * 0.55 + Math.sin(x * 0.77 + 4.1) * 0.3;   // slow only: fast ones carved flutes along the wall
       const s = section(phiAt(x, t) + 0.06 * Math.sin(x * 0.53), w);
       let arc = 0;
       for (let c = 0; c < NSEC; c++) {

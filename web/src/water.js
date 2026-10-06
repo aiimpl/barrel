@@ -11,6 +11,14 @@ float vnoise(vec2 p){
   vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3. - 2. * f);
   return mix(mix(hash12(i), hash12(i + vec2(1, 0)), u.x), mix(hash12(i + vec2(0, 1)), hash12(i + vec2(1, 1)), u.x), u.y);
 }
+// gradient noise with a quintic fade: its slope has no grid lines (value noise's does, and they show as rings)
+vec2 ghash(vec2 p){ p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3))); return -1. + 2. * fract(sin(p) * 43758.5453); }
+float gnoise(vec2 p){
+  vec2 i = floor(p), f = fract(p);
+  vec2 u = f * f * f * (f * (f * 6. - 15.) + 10.);
+  return 0.5 + 0.7 * mix(mix(dot(ghash(i), f), dot(ghash(i + vec2(1, 0)), f - vec2(1, 0)), u.x),
+                         mix(dot(ghash(i + vec2(0, 1)), f - vec2(0, 1)), dot(ghash(i + vec2(1, 1)), f - vec2(1, 1)), u.x), u.y);
+}
 float fbm(vec2 p){ float s = 0., a = .5; for (int i = 0; i < 5; i++){ s += a * vnoise(p); p = p * 2.03 + vec2(1.7, 9.2); a *= .5; } return s; }
 // true 3D value noise: plane-projected 2D noise is constant along one axis, which shows as lines toward the eye
 float hash31(vec3 p){ p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419)); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
@@ -94,6 +102,7 @@ uniform float uT;
 uniform vec3 uCam;
 uniform vec3 uSunCol;
 uniform float uDbg;
+uniform float uWake;
 varying vec3 vW; varying vec3 vN; varying float vTh; varying float vPart; varying float vFoam; varying vec2 vUv; varying float vOcc;
 ${noise}
 ${sky}
@@ -109,35 +118,48 @@ void main(){
   float lip = max(step(0.5, vPart) * step(vPart, 2.5), step(2.5, vPart) * step(vPart, 3.5) * smoothstep(1.5, 4.8, vW.y));
   // how much this point is the open sea (behind the back / in front of the trough): shaded like the sea plane
   // by height above the trough, so the face blends into the sea without a seam
-  float seaK = step(2.5, vPart) * (1. - smoothstep(0.15, 1.2, vW.y));
-  float spd = mix(2.2, 3.4, lip);
-  // the streak pattern is warped so it never lines up into regular rings down the tube
-  vec2 wp = vec2(fbm(vec2(vUv.x * 0.9, vUv.y * 0.7 - uT * 0.8)), fbm(vec2(vUv.x * 0.8 + 5.2, vUv.y * 0.6 - uT * 0.7)));
-  vec2 s1 = vec2(vUv.x * 3.2 + wp.x * 3.0, vUv.y * 1.1 - uT * spd + wp.y * 1.6);
-  vec2 s2 = vec2(vUv.x * 9.0 + wp.y * 5.0, vUv.y * 3.4 - uT * spd * 1.3 + wp.x * 2.5);
-  float e = 0.04;
-  float f1 = pu * 3.2, f2 = pu * 9.;
-  float a0 = fbmF(s1, f1) + 0.45 * fbmF(s2, f2);
-  float ax = fbmF(s1 + vec2(e, 0.), f1) + 0.45 * fbmF(s2 + vec2(e, 0.), f2);
-  float ay = fbmF(s1 + vec2(0., e), f1) + 0.45 * fbmF(s2 + vec2(0., e), f2);
+  float seaK = step(2.5, vPart) * (1. - smoothstep(0.15, 1.2, vW.y)) * smoothstep(0.55, 0.9, abs(normalize(vN).y));   // flat water only: on a steep wall the sea's xz pattern smears into stripes
+  // Small-scale water, the way real-time surf renderers do it (not stretched streaks, which read as taffy):
+  //  1) chop: six small travelling waves, 0.85-3.4 m, k*a = 0.075, deep-water dispersion (w = sqrt(g k))
+  //  2) ripples at 4 m and 1.3 m, carried along by the water with a two-phase flow map (2 s period)
+  // Both are in the surface's own coordinates (x along the wave, arc length across it), in metres.
   vec3 t1 = vec3(1., 0., 0.), t2 = normalize(cross(n, t1));
-  // big, slow patches so the streaks are not uniform
-  float patchy = 0.45 + 1.1 * fbm(vec2(vUv.x * 0.35 + 7., vUv.y * 0.25 - uT * 0.6));
-  float amp = 0.016 * (1. - lip) * patchy * (1. - seaK);
-  n = normalize(n - (t1 * (ax - a0) + t2 * (ay - a0)) / e * amp);
+  vec2 sp = vUv;
+  vec2 chop = vec2(0.);
+  {
+    float L0 = 3.4, L1 = 2.3, L2 = 1.6, L3 = 1.2, L4 = 1.0, L5 = 0.85;
+    #define CHOP(L, ang, ph0) { float k = 6.2832 / L; vec2 d = vec2(cos(ang), sin(ang)); float ph = k * dot(d, sp) - sqrt(9.81 * k) * uT + ph0; chop += d * (0.012 * L * k * cos(ph)); }
+    CHOP(L0, 0.3, 0.0) CHOP(L1, 1.9, 1.7) CHOP(L2, 3.6, 3.1) CHOP(L3, 4.6, 4.4) CHOP(L4, 5.5, 2.2) CHOP(L5, 0.9, 5.3)
+  }
+  // the water's run across the section: up the face and out along the lip toward its tip
+  float runs = mix(0.6, 6.0, lip);
+  vec2 flow = vec2(0., step(vPart, 1.5) * step(0.5, vPart) > 0.5 ? runs : -runs);
+  float fa = fract(uT / 2.0), fbph = fract(fa + 0.5), fw = 1. - abs(2. * fa - 1.);
+  vec2 pa = sp - flow * fa * 2.0, pb = sp - flow * fbph * 2.0 + vec2(7.13, 3.31);
+  float e = 0.03;
+  #define RIP(q) (gnoise(mat2(0.8, -0.6, 0.6, 0.8) * (q) / 4.0) * 0.6 + gnoise(mat2(0.36, 0.93, -0.93, 0.36) * (q) / 1.9 + 3.7) * 0.3 + (gnoise(mat2(0.97, 0.26, -0.26, 0.97) * (q) / 1.3) * 0.5 + gnoise(mat2(-0.5, 0.87, -0.87, -0.5) * (q) / 0.6 + 1.9) * 0.25) * 0.6 + (gnoise(mat2(0.1, -0.99, 0.99, 0.1) * (q) / 0.4 + 5.1) * 0.12 + gnoise(mat2(0.7, 0.7, -0.7, 0.7) * (q) / 0.18 + 2.7) * 0.05 * fine2) * fine)
+  float fine = 1. - smoothstep(0.08, 0.5, pu), fine2 = 1. - smoothstep(0.02, 0.12, pu);
+  float r0a = RIP(pa), r0b = RIP(pb);
+  float a0 = mix(r0b, r0a, fw);
+  float rxa = RIP(pa + vec2(e, 0.)), rxb = RIP(pb + vec2(e, 0.)), rya = RIP(pa + vec2(0., e)), ryb = RIP(pb + vec2(0., e));
+  vec2 rip = (vec2(mix(rxb, rxa, fw), mix(ryb, rya, fw)) - a0) / e;
+  // finer than the pixel fades out (no aliasing, no glitter crawl at a distance): see fine above
+  vec2 slope = chop * 0.0 * (1. - smoothstep(0.15, 0.9, pu)) + rip * 0.4 * fine * mix(0.6, 1.0, lip);
+  n = normalize(n - t1 * slope.x - t2 * slope.y);
   // the sea: world-space ripples like the open-sea plane
   {
     vec2 p = vW.xz; float es = 0.08; vec2 off = vec2(uT * 0.1, uT * 0.05);
     float g0 = fbm(p * 0.35 + off), gx = fbm((p + vec2(es, 0.)) * 0.35 + off), gz = fbm((p + vec2(0., es)) * 0.35 + off);
-    vec3 ns = normalize(vec3(-(gx - g0) / es * 0.5, 1., -(gz - g0) / es * 0.5));
+    vec3 ns = normalize(vec3(-(gx - g0) / es * 0.15, 1., -(gz - g0) / es * 0.15));
     n = normalize(mix(n, ns, seaK));
+    n = normalize(n - (t1 * slope.x + t2 * slope.y) * seaK);   // the small chop and ripples on the sea too
   }
   // fine chop, the same in every direction: three planes of noise averaged, so no direction lines up
   vec3 cw = vW * 3.5 + vec3(-uT * 3.0, uT * 1.0, 0.);
   float fc = px * 3.5;
   float ch = fbm3F(cw, fc);
   float ch2 = fbm3F(cw + vec3(5.3, 1.9, 2.4), fc);
-  n = normalize(n + (t1 * (ch - 0.5) + t2 * (ch2 - 0.5)) * 0.35 * (1. - seaK));
+  n = normalize(n + (t1 * (ch - 0.5) + t2 * (ch2 - 0.5)) * 0.06 * (1. - seaK));
   float streak = a0;   // also used to vary the light coming through
   // the lip's sheet is aerated and bumpy (world space, carried with the flow), not smooth
   vec3 bp = vW * 2.6 + vec3(-uT * 4.0, 0., uT * 1.5);
@@ -145,13 +167,13 @@ void main(){
   float b1 = fbm3F(bp, fb), b2 = fbm3F(bp * 1.7 + vec3(7.1, 2.2, 4.0), fb * 1.7), b3 = fbm3F(bp * 3.1 + vec3(2.3, 6.6, 1.1), fb * 3.1);
   // swirls: the water runs round the curl, so the sheet carries long soft streaks along it (filtered: no aliasing)
   float sw = fbmF(vec2(vUv.x * 1.6 + b1 * 1.5, vUv.y * 0.22 - uT * 0.9), pu * 1.6);
-  n = normalize(n + (t1 * (b1 - 0.5) + t2 * (b2 - 0.5)) * 0.18 * lip + t1 * (sw - 0.5) * 0.25 * lip);
+  n = normalize(n + (t1 * (b1 - 0.5) + t2 * (b2 - 0.5)) * 0.08 * lip + t1 * (sw - 0.5) * 0.05 * lip);
   float aer = lip * smoothstep(0.2, 0.95, b1 * 0.55 + sw * 0.45);
   float ndv = max(dot(n, v), 0.);
   float F = 0.02 + 0.98 * pow(1. - ndv, 5.);
   // under a closed lip the water reflects the tube's ceiling (dim blue), not the sky
   vec3 rd = reflect(-v, n);
-  vec3 refl = mix(skyCol(rd), vec3(0.09, 0.2, 0.3) * (0.7 + 0.6 * max(rd.y, 0.)), vOcc * smoothstep(-0.1, 0.25, rd.y));
+  vec3 refl = mix(skyCol(rd) * 0.6, vec3(0.1, 0.24, 0.32) * (0.75 + 0.5 * max(rd.y, 0.)), vOcc);   // inside a closed tube every way the water looks is more water
   // light through the water: thickness along the light's path, red absorbed most
   // the lip is not even: thin windows and thicker ropes run with the flow
   float thv = vTh * mix(1.0, 0.5 + 1.0 * smoothstep(0.3, 0.75, (b1 + b3) * 0.5), lip);
@@ -174,13 +196,14 @@ void main(){
   // the Sun's glints
   vec3 hdir = normalize(uSun + v);
   // glints: only the facets that catch the Sun exactly, broken up by the fine chop
-  col += uSunCol * pow(max(dot(n, hdir), 0.), 1800.) * 30. * step(0.62, fbmF(vec2(vUv.x * 40., vUv.y * 33. - uT * 7.), pu * 40.));
+  float nh = max(dot(n, hdir), 0.);
+  col += uSunCol * (pow(nh, 320.) * 1.6 + pow(nh, 48.) * 0.04) * F * 12. * (1. - vOcc);   // no sun inside a closed tube
   // foam: the lip's edge, the landing, the whitewater. Never flat paint: bubbles and clumps with shaded creases,
   // and gaps where the water shows, even where it is thick.
   float g1 = fbmF(vec2(vUv.x * 4.0, vUv.y * 4.4 - uT * 1.6), pu * 4.4);
   float g2 = fbmF(vec2(vUv.x * 17., vUv.y * 14. - uT * 2.2), pu * 17.);
   float g3 = fbmF(vec2(vUv.x * 46., vUv.y * 38. - uT * 3.0), pu * 46.);
-  float cover = clamp(vFoam, 0., 1.);
+  float cover = clamp(max(vFoam, uWake * 0.3 * (1. - smoothstep(2., 10., length(vW.xz - uCam.xz))) * step(3.5, vPart)), 0., 1.);
   float web = 1. - abs(g2 * 2. - 1.);
   float clump = g1 * 0.55 + g2 * 0.3 + g3 * 0.25;
   float lace = mix(web * 0.75 + g3 * 0.35, clump, cover);
@@ -199,7 +222,7 @@ void main(){
   if (uDbg > 2.5 && uDbg < 3.5) col = vec3(vTh / 3.0, vFoam, vOcc);        // attributes
   if (uDbg > 3.5 && uDbg < 4.5) col = glow;
   if (uDbg > 4.5 && uDbg < 5.5) col = vec3(fract(vTh * 4.), vTh / 3., 0.);
-  if (uDbg > 5.5) col = vec3(lumps);
+  if (uDbg > 5.5 && uDbg < 6.5) col = vec3(lumps);
   gl_FragColor = vec4(col, 1.);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -219,7 +242,17 @@ void main(){
   vec2 p = vW.xz;
   float e = 0.08;
   float h0 = fbm(p * 0.35 + vec2(uT * 0.1, uT * 0.05)), hx = fbm((p + vec2(e, 0.)) * 0.35 + vec2(uT * 0.1, uT * 0.05)), hz = fbm((p + vec2(0., e)) * 0.35 + vec2(uT * 0.1, uT * 0.05));
-  vec3 n = normalize(vec3(-(hx - h0) / e * 0.5, 1., -(hz - h0) / e * 0.5));
+  vec3 n = normalize(vec3(-(hx - h0) / e * 0.15, 1., -(hz - h0) / e * 0.15));
+  // small travelling chop (0.85-3.4 m, k*a = 0.075, w = sqrt(g k)) and 1-4 m ripples, as on the wave
+  {
+    vec2 chop = vec2(0.);
+    #define SCHOP(L, ang, ph0) { float k = 6.2832 / L; vec2 d = vec2(cos(ang), sin(ang)); float ph = k * dot(d, p) - sqrt(9.81 * k) * uT + ph0; chop += d * (0.012 * L * k * cos(ph)); }
+    SCHOP(3.4, 0.3, 0.0) SCHOP(2.3, 1.9, 1.7) SCHOP(1.6, 3.6, 3.1) SCHOP(1.2, 4.6, 4.4) SCHOP(1.0, 5.5, 2.2) SCHOP(0.85, 0.9, 5.3)
+    float pw = length(fwidth(p));
+    float r0 = vnoise(p / 1.3 + uT * 0.4), rx = vnoise((p + vec2(0.06, 0.)) / 1.3 + uT * 0.4), rz = vnoise((p + vec2(0., 0.06)) / 1.3 + uT * 0.4);
+    vec2 sl = chop * 0.6 * (1. - smoothstep(0.1, 0.8, pw)) + vec2(rx - r0, rz - r0) / 0.06 * 0.08 * (1. - smoothstep(0.05, 0.4, pw));
+    n = normalize(n + vec3(-sl.x, 0., -sl.y));
+  }
   float dist = length(uCam - vW);
   n = normalize(mix(n, vec3(0., 1., 0.), smoothstep(30., 400., dist)));
   float F = 0.02 + 0.98 * pow(1. - max(dot(n, v), 0.), 5.);

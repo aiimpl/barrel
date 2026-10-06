@@ -24,7 +24,7 @@ const camera = new THREE.PerspectiveCamera(70, 16 / 9, 0.05, 40000);
 
 // the Sun: on the beach side and ahead, so it shines through the lip toward a rider inside
 const SUN = new THREE.Vector3(0.35, 0.55, 0.76).normalize();
-const U = { uDbg: { value: +(new URLSearchParams(location.search).get('dbg') || 0) }, uT: { value: 0 }, uCam: { value: new THREE.Vector3() }, uSun: { value: SUN }, uSunCol: { value: new THREE.Color(1.0, 0.97, 0.93).multiplyScalar(2.4) } };
+const U = { uWake: { value: 0 }, uDbg: { value: +(new URLSearchParams(location.search).get('dbg') || 0) }, uT: { value: 0 }, uCam: { value: new THREE.Vector3() }, uSun: { value: SUN }, uSunCol: { value: new THREE.Color(1.0, 0.97, 0.93).multiplyScalar(2.4) } };
 
 const skyMesh = new THREE.Mesh(new THREE.SphereGeometry(35000, 48, 24), new THREE.ShaderMaterial({ uniforms: U, vertexShader: skyVert, fragmentShader: skyFrag, side: THREE.BackSide, depthWrite: false }));
 skyMesh.renderOrder = -10;
@@ -54,7 +54,7 @@ const lens = new ShaderPass({
     void main() {
       vec2 c = vUv - 0.5; c.x *= uAspect;
       float r2 = dot(c, c);
-      vec2 d = c * (1. - uK * r2) / (1. - uK * 0.3);
+      vec2 d = c * (1. + uK * r2) / (1. + uK * (0.25 * uAspect * uAspect + 0.25));   // fisheye: edges squeezed (not stretched, which smears everything radially), corners stay corners
       // drops: a few dozen lenses on the glass, each bending the view and bright at its rim
       vec2 off = vec2(0.); float rim = 0.;
       for (int i = 0; i < 40; i++) {
@@ -109,7 +109,7 @@ if (!RENDER) {
 const v3 = (x, y, z) => new THREE.Vector3(x, y, z);
 
 let headYaw = 0, headPitch = 0;
-const PEEL_AHEAD = 9.0;   // the rider, once out, keeps going along the wave a little slower than the peel
+const PEEL_AHEAD = 15.0;  // the rider, once out, outruns the peel onto the shoulder, where the wave beside is lower
 function placeCamera(t) {
   let x = riderX(t), pos, aim, fov = 72, roll = 0;
   headYaw = 0; headPitch = 0;
@@ -122,12 +122,12 @@ function placeCamera(t) {
     if (t >= 13.0) {
       const v0 = (riderX(13.0) - riderX(12.95)) / 0.05;  // keep the speed it had, easing down to PEEL_AHEAD
       const dt = t - 13.0, k = ss(13.0, 14.5, t);
-      x = riderX(13.0) + dt * (v0 + (PEEL_AHEAD - v0) * k * 0.5);
+      x = riderX(13.0) + dt * (v0 + (PEEL_AHEAD - v0) * k * 0.6);
     }
     const calm = 1 - away;                              // the bob of riding fades once out on the flat
     const bob = (0.05 * Math.sin(t * 2.3) + 0.03 * Math.sin(t * 5.1 + 1)) * calm;
     pos = v3(x, 0.8 + bob + 0.4 * out + 0.4 * away, 4.1 + 0.08 * Math.sin(t * 1.7) * calm + 1.5 * out + 4.5 * away);
-    aim = v3(x + 12, 3.6 - 1.2 * out + 1.6 * away, 6.6 + 1.0 * out + 2.0 * away); fov = 92;
+    aim = v3(x + 12, 3.6 - 1.2 * out + 1.6 * away, 6.6 + 1.0 * out + 2.0 * away); fov = 104;
     roll = (0.06 * Math.sin(t * 1.3) + 0.05 * Math.sin(t * 0.7 + 2)) * (1 - 0.5 * away);
     lens.uniforms.uK.value = 0.5;
   }
@@ -152,6 +152,7 @@ function frame(t) {
   lens.uniforms.uDrops.value = 0;   // drops on the glass read as bubbles floating on the sea
   spray.u.uPx.value = renderer.domElement.height / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
   U.uT.value = t;
+  U.uWake.value = 0;   // (foam on the water after the exit read as leopard spots with a hard edge; left off)
   U.uCam.value.copy(camera.position);
   skyMesh.position.copy(camera.position);
   composer.render();
