@@ -165,6 +165,16 @@ void main(){
   vec3 bp = vW * 2.6 + vec3(-uT * 4.0, 0., uT * 1.5);
   float fb = px * 2.6;
   float b1 = fbm3F(bp, fb), b2 = fbm3F(bp * 1.7 + vec3(7.1, 2.2, 4.0), fb * 1.7), b3 = fbm3F(bp * 3.1 + vec3(2.3, 6.6, 1.1), fb * 3.1);
+  // in the lip the water pours toward the tip at ~8 m/s (down the curtain from inside): its lumps stream that way,
+  // so the curtain is never a still veil. Gradient noise (no grid lines), a little longer along the flow than across.
+  {
+    float dir = (vPart > 0.5 && vPart < 1.5 && vOcc < 0.5) ? -1. : 1.;          // top of the lip: arc grows toward the tip
+    vec2 lq = vec2(vUv.x, vUv.y * 0.55 + dir * uT * 8.0 * 0.55);
+    float lf1 = gnoise(lq * 1.1) * 0.55 + gnoise(lq * 2.6 + 3.1) * 0.3 + gnoise(lq * 6.1 + 7.3) * 0.15 * fine;
+    float lf2 = gnoise(lq * 1.7 + 5.2) * 0.6 + gnoise(lq * 4.3 + 1.4) * 0.4 * fine;
+    float lf3 = gnoise(lq * 3.3 + 9.1) * 0.6 + gnoise(lq * 7.9 + 2.2) * 0.4 * fine;
+    b1 = mix(b1, lf1, lip); b2 = mix(b2, lf2, lip); b3 = mix(b3, lf3, lip);
+  }
   // swirls: the water runs round the curl, so the sheet carries long soft streaks along it (filtered: no aliasing)
   float sw = fbmF(vec2(vUv.x * 1.6 + b1 * 1.5, vUv.y * 0.22 - uT * 0.9), pu * 1.6);
   n = normalize(n + (t1 * (b1 - 0.5) + t2 * (b2 - 0.5)) * 0.08 * lip + t1 * (sw - 0.5) * 0.05 * lip);
@@ -173,7 +183,10 @@ void main(){
   float F = 0.02 + 0.98 * pow(1. - ndv, 5.);
   // under a closed lip the water reflects the tube's ceiling (dim blue), not the sky
   vec3 rd = reflect(-v, n);
-  vec3 refl = mix(skyCol(rd) * 0.6, vec3(0.1, 0.24, 0.32) * (0.75 + 0.5 * max(rd.y, 0.)), vOcc);   // inside a closed tube every way the water looks is more water
+  // inside a closed tube every way the water looks is more water: the moving, lumpy, half-lit sheet across the tube
+  // (not a flat colour, which turns the grazing-lit curtain into a still veil)
+  vec3 tubeRefl = mix(vec3(0.06, 0.16, 0.22), vec3(0.3, 0.55, 0.62), smoothstep(0.25, 0.8, b2 * 0.6 + b3 * 0.4)) * (0.7 + 0.5 * max(rd.y, 0.));
+  vec3 refl = mix(skyCol(rd) * 0.6, tubeRefl, vOcc);
   // light through the water: thickness along the light's path, red absorbed most
   // the lip is not even: thin windows and thicker ropes run with the flow
   float thv = vTh * mix(1.0, 0.5 + 1.0 * smoothstep(0.3, 0.75, (b1 + b3) * 0.5), lip);
@@ -190,7 +203,7 @@ void main(){
   glow = min(glow, vec3(0.35, 0.6, 0.75));               // even the thinnest water keeps its colour
   // light scattered inside the water body (the deep teal of thick water), lit by the sky
   vec3 body = vec3(0.005, 0.035, 0.075) * (0.6 + 0.4 * max(n.y, 0.)) + vec3(0.03, 0.13, 0.2) * exp(-th * 0.4) * (1. + 0.6 * lip);
-  vec3 col = mix(body + glow, refl, F);
+  vec3 col = mix(body + glow, refl, F * mix(1., 0.65, vOcc));
   // air in the thin sheet scatters light: milky blue-white patches
   col = mix(col, vec3(0.66, 0.78, 0.84) * (0.85 + 0.25 * phase), aer * 0.6 * exp(-thv * 0.45));
   // the Sun's glints
@@ -219,6 +232,7 @@ void main(){
   col = mix(col, skyCol(normalize(vec3(-v.x, 0.02, -v.z))), 1. - exp(-dist * 0.0012));
   if (uDbg > 0.5 && uDbg < 1.5) col = normalize(vN) * 0.5 + 0.5;          // geometric normal
   if (uDbg > 1.5 && uDbg < 2.5) col = n * 0.5 + 0.5;                      // final normal
+  if (uDbg > 9.5 && uDbg < 10.5) { float q = floor(vPart + 0.5); col = q < 0.5 ? vec3(.5) : q < 1.5 ? vec3(1,0,0) : q < 2.5 ? vec3(0,1,0) : q < 3.5 ? vec3(0,0,1) : vec3(1,1,0); }   // part: back grey, lip top red, underside green, face blue, sea yellow
   if (uDbg > 2.5 && uDbg < 3.5) col = vec3(vTh / 3.0, vFoam, vOcc);        // attributes
   if (uDbg > 3.5 && uDbg < 4.5) col = glow;
   if (uDbg > 4.5 && uDbg < 5.5) col = vec3(fract(vTh * 4.), vTh / 3., 0.);

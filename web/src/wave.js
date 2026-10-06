@@ -135,6 +135,14 @@ export function section(phi, w = 0) {
   const tipZ = P[BACK + LIP + 1 + (TIP >> 1)][0];
   const closed = smooth(0.85, 1.05, p) * (1 - smooth(2.1, 2.6, p));
   const OCC = P.map(([z], i) => (PART[i] >= 2 && z < tipZ + 0.3 ? closed : 0));
+  // where the lip has landed it lies on the water: there it is churned white, not a smooth sheet (from inside the
+  // tube that sheet read as a still haze)
+  for (let i = 0; i < P.length; i++) {
+    if (PART[i] !== 1) continue;
+    const low = smooth(1.6 * SCALE, 0.25 * SCALE, P[i][1]);
+    FOAM[i] = Math.max(FOAM[i], closed * low * 0.85);
+    OCC[i] = Math.max(OCC[i], closed * (P[i][0] < tipZ + 2.5 ? 1 : low));   // the curtain's outer face, where it folds into view from inside
+  }
   return { P, TH, PART, FOAM, OCC, lipTip: P[BACK + LIP + 1 + (TIP >> 1)], curl };
 }
 

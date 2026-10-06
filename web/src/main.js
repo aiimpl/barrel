@@ -38,7 +38,7 @@ waveMesh.frustumCulled = false;
 scene.add(waveMesh);
 const spray = new Spray(THREE);
 spray.u.uSun.value = SUN; spray.u.uSunCol.value = U.uSunCol.value;
-scene.add(spray.points);
+scene.add(spray.points); if (q.has('nospray')) spray.points.visible = false;
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
