@@ -38,7 +38,7 @@ waveMesh.frustumCulled = false;
 scene.add(waveMesh);
 const spray = new Spray(THREE);
 spray.u.uSun.value = SUN; spray.u.uSunCol.value = U.uSunCol.value;
-scene.add(spray.points);
+scene.add(spray.points); if (q.has('nospray')) spray.points.visible = false;
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
@@ -100,7 +100,7 @@ function kf(K, t) {
   return (2 * u3 - 3 * u2 + 1) * v0 + (u3 - 2 * u2 + u) * m0 + (-2 * u3 + 3 * u2) * v1 + (u3 - u2) * m1;
 }
 // how far the curl has gone where the camera is
-const PHI = [[0, 0.36], [3.0, 0.45], [3.4, 0.52], [4.0, 0.8], [4.6, 1.1], [5.4, 1.25], [6.0, 0.98], [6.6, 0.78], [7.2, 0.58], [7.8, 0.45], [8.5, 0.35], [10, 0.3]];
+const PHI = [[0, 0.36], [3.0, 0.5], [3.4, 0.62], [4.0, 0.84], [4.6, 1.1], [5.4, 1.25], [6.0, 0.98], [6.6, 0.78], [7.2, 0.58], [7.8, 0.45], [8.5, 0.35], [10, 0.3]];
 // where the camera is across the wave (z, toward the beach) and its height: out in front while the lip throws,
 // swept back under it as the wave comes on, then carried forward out through the window
 const CZ = [[0, 5.2], [3.2, 5.0], [4.3, 4.7], [6.0, 4.6], [6.6, 4.8], [7.2, 5.6], [7.8, 8.0], [8.5, 12.0], [10, 15.0]];
@@ -111,9 +111,9 @@ const PITCH = [[0, 0.22], [3.2, 0.24], [4.3, 0.16], [6.0, 0.1], [7.0, 0.08], [8.
 const ROLL = [[0, -0.2], [4.3, -0.16], [7.2, -0.12], [8.5, -0.22], [10, -0.24]];
 const ridePhi = (t) => kf(PHI, t);
 // how strongly the lip ahead-left throws before the rest (the slanted edge as it comes over)
-const PEAKA = [[0, 0.75], [4.0, 0.75], [4.8, 0.35], [5.6, 0.0], [10, 0.0]];
+const PEAKA = [[0, 0], [10, 0]];
 const PEAK_OFF = 12, PEAK_W = 10;
-const PEAKB = [[0, 0.9], [4.0, 0.9], [4.8, 0.4], [5.6, 0.0], [10, 0.0]];
+const PEAKB = [[0, 0], [10, 0]];
 const peakAt = (t) => kf(PEAKA, t) * Math.tanh(-PEAK_OFF / PEAK_W) + kf(PEAKB, t) * (Math.tanh(1) - 1) * 0.5;   // the steps' value at the camera
 const PHIQ = q.get('phi'); const ridePhiQ = PHIQ ? () => +PHIQ : ridePhi;
 // the camera's own curl is PHI; the reef's step (PEAK) is undone at the camera so PHI stays what it says

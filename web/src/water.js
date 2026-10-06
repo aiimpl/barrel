@@ -177,7 +177,7 @@ void main(){
   float F = 0.02 + 0.98 * pow(1. - ndv, 5.);
   // under a closed lip the water reflects the tube's ceiling (dim blue), not the sky
   vec3 rd = reflect(-v, n);
-  vec3 refl = mix(skyCol(rd), vec3(0.09, 0.2, 0.3) * (0.7 + 0.6 * max(rd.y, 0.)), vOcc * smoothstep(-0.1, 0.25, rd.y)) * mix(1., 0.42, seaK);
+  vec3 refl = mix(skyCol(rd), vec3(0.09, 0.2, 0.3) * (0.7 + 0.6 * max(rd.y, 0.)), max(vOcc, lip * clamp((uMilk - 0.35) / 0.65, 0., 1.)) * smoothstep(-0.1, 0.25, rd.y)) * mix(1., 0.42, seaK);   // from inside the tube the lip reflects the tube, not the sky
   // light through the water: thickness along the light's path, red absorbed most
   // the lip is not even: thin windows and thicker ropes run with the flow
   float thv = vTh * mix(1.0, 0.75 + 0.5 * smoothstep(0.3, 0.75, (b1 + b3) * 0.5), lip);
@@ -204,7 +204,7 @@ void main(){
   // the Sun's glints
   vec3 hdir = normalize(uSun + v);
   // glints: only the facets that catch the Sun exactly, broken up by the fine chop
-  col += uSunCol * pow(max(dot(n, hdir), 0.), 1800.) * 12. * step(0.62, fbmF(vec2(vUv.x * 40., vUv.y * 33. - uT * 7.), pu * 40.));
+  col += uSunCol * pow(max(dot(n, hdir), 0.), 1800.) * 12. * step(0.62, fbmF(vec2(vUv.x * 40., vUv.y * 33. - uT * 7.), pu * 40.)) * (1. - lip);   // not on the lip's sheet: there they read as patches, not sparkles
   // foam: the lip's edge, the landing, the whitewater. Never flat paint: bubbles and clumps with shaded creases,
   // and gaps where the water shows, even where it is thick.
   float g1 = fbmF(vec2(vUv.x * 9.0, vUv.y * 9.0 - uT * 2.4), pu * 9.);
@@ -229,7 +229,10 @@ void main(){
   if (uDbg > 2.5 && uDbg < 3.5) col = vec3(vTh / 3.0, vFoam, vOcc);        // attributes
   if (uDbg > 3.5 && uDbg < 4.5) col = glow;
   if (uDbg > 4.5 && uDbg < 5.5) col = vec3(fract(vTh * 4.), vTh / 3., 0.);
-  if (uDbg > 5.5) col = vec3(lumps);
+  if (uDbg > 5.5 && uDbg < 6.5) col = vec3(lumps);
+  if (uDbg > 6.5 && uDbg < 7.5) col = refl;                               // what the surface reflects
+  if (uDbg > 7.5 && uDbg < 8.5) { float q = floor(vPart + 0.5); col = q < 0.5 ? vec3(.5) : q < 1.5 ? vec3(1,0,0) : q < 2.5 ? vec3(0,1,0) : q < 3.5 ? vec3(0,0,1) : vec3(1,1,0); }   // part: back grey, lip top red, underside green, wall blue, sea yellow
+  if (uDbg > 8.5 && uDbg < 9.5) col = vec3(fm, cover, 0.);                // foam
   gl_FragColor = vec4(col, 1.);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
