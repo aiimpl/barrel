@@ -115,23 +115,20 @@ function placeCamera(t) {
   headYaw = 0; headPitch = 0;
   if (CAMQ) {
     pos = v3(x + CAMQ[0], CAMQ[1], CAMQ[2]); aim = v3(x + CAMQ[3], CAMQ[4], CAMQ[5]); fov = CAMQ[6] || 70;
-  } else if (t < 13.0) {
-    // the rider's eye: low, a little in front of the face, looking down the tube toward the eye
-    const bob = 0.05 * Math.sin(t * 2.3) + 0.03 * Math.sin(t * 5.1 + 1);
-    const out = ss(10.6, 12.6, t);
-    pos = v3(x, 0.8 + bob + 0.4 * out, 4.1 + 0.08 * Math.sin(t * 1.7) + 1.5 * out);
-    aim = v3(x + 12, 3.6 - 1.2 * out, 6.6 + 1.0 * out); fov = 92;
-    roll = 0.06 * Math.sin(t * 1.3) + 0.05 * Math.sin(t * 0.7 + 2);
-    lens.uniforms.uK.value = 0.5;
   } else {
-    // out on the shoulder: turn round and look back at the tube as it spits
-    // out in the open: glide on with the wave on the left and the island ahead, slowing down
-    const u = ss(13.0, 14.5, t);
-    x = riderX(13.0) + PEEL_AHEAD * (t - 13.0) * (1 - 0.3 * u);
-    const away = ss(12.6, 14.5, t);                     // carried out onto the flat water, away from the face
-    pos = v3(x, 1.2 + 0.4 * away, 5.6 + 4.5 * away);
-    aim = v3(x + 12, 2.4 + 1.6 * away, 7.6 + 2.0 * away); fov = 92;
-    roll = 0.04 * Math.sin(t * 1.1);
+    // one continuous move (no switch of cameras, which jumped at 13 s): down the tube toward the eye, blown out
+    // through it by the spit (10.6-12.6 s), then carried off the face onto the flat water, slowing down
+    const out = ss(10.6, 12.6, t), away = ss(12.6, 14.5, t);
+    if (t >= 13.0) {
+      const v0 = (riderX(13.0) - riderX(12.95)) / 0.05;  // keep the speed it had, easing down to PEEL_AHEAD
+      const dt = t - 13.0, k = ss(13.0, 14.5, t);
+      x = riderX(13.0) + dt * (v0 + (PEEL_AHEAD - v0) * k * 0.5);
+    }
+    const calm = 1 - away;                              // the bob of riding fades once out on the flat
+    const bob = (0.05 * Math.sin(t * 2.3) + 0.03 * Math.sin(t * 5.1 + 1)) * calm;
+    pos = v3(x, 0.8 + bob + 0.4 * out + 0.4 * away, 4.1 + 0.08 * Math.sin(t * 1.7) * calm + 1.5 * out + 4.5 * away);
+    aim = v3(x + 12, 3.6 - 1.2 * out + 1.6 * away, 6.6 + 1.0 * out + 2.0 * away); fov = 92;
+    roll = (0.06 * Math.sin(t * 1.3) + 0.05 * Math.sin(t * 0.7 + 2)) * (1 - 0.5 * away);
     lens.uniforms.uK.value = 0.5;
   }
   camera.position.copy(pos);
@@ -149,7 +146,7 @@ function frame(t) {
   const x = placeCamera(t);
   wave.update(t, x);
   // two spits: one blows the rider out (9.6-12 s), one comes out of the tube while we look back (15.5-18.5 s)
-  spray.update(t, t < 13 ? riderX(t) : breakX(t) - 1.1 * LPHI, t < 13 ? ss(9.6, 12.0, t) : 0);
+  spray.update(t, x, ss(9.6, 12.0, t) * (1 - ss(12.0, 12.4, t)));
   lens.uniforms.uT.value = t;
   lens.uniforms.uMist.value = 0.35 * ss(10.2, 10.8, t) * (1 - ss(11.2, 12.2, t));   // a veil, not a whiteout: the spit is the spray flying past
   lens.uniforms.uDrops.value = 0;   // drops on the glass read as bubbles floating on the sea
