@@ -1,7 +1,7 @@
 """The barrel's sound, synthesised (no recordings): python tools/audio.py <out.wav> [seconds]
-  0-3.6 s   open: the roar of the wave over the camera, the hiss of the lip pitching
-  3.6-7 s   inside: the lip lands with a thump and the roar goes hollow and boomy (a low resonance)
-  7-10 s    out through the window: a rush of air and spray, then the roar opens up behind
+  0-3.8 s    open: the roar of the wave over the camera, the hiss of the lip pitching
+  3.8-10.5 s inside: the lip lands with a thump and the roar goes hollow and boomy (a low resonance)
+  9.4-11 s   the spit: a rush of air and spray from behind, out through the eye; then the roar opens up
 Times follow web/src/main.js.
 """
 import sys
@@ -34,11 +34,11 @@ def resonance(x, f0, q):
 
 def main():
     out = sys.argv[1]
-    dur = float(sys.argv[2]) if len(sys.argv) > 2 else 10.0
+    dur = float(sys.argv[2]) if len(sys.argv) > 2 else 12.0
     n = int(dur * SR)
     t = np.arange(n) / SR
     w = rng.standard_normal(n)
-    inside = ss(3.5, 4.2, t) * (1 - ss(6.7, 7.5, t))
+    inside = ss(3.7, 4.2, t) * (1 - ss(10.2, 11.0, t))
     # the roar: broadband, slowly breathing
     breath = 0.75 + 0.25 * np.sin(2 * np.pi * 0.35 * t) * np.sin(2 * np.pi * 0.13 * t + 1)
     roar_open = band(w, 60, 6000) * breath
@@ -57,7 +57,7 @@ def main():
     slaps *= (1 - inside * 0.85) * 0.5
     # the spits: a pressure blast (low thump + rushing air) each
     spit = np.zeros(n)
-    for at, g in ((3.95, 1.1), (6.8, 0.6)):
+    for at, g in ((3.95, 1.1), (9.4, 0.9)):
         env = ss(at, at + 0.35, t) * (1 - ss(at + 1.2, at + 2.4, t))
         spit += band(rng.standard_normal(n), 400, 12000) * env * g * 1.3
         i = int(at * SR)

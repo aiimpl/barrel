@@ -15,7 +15,7 @@ frames:
 	$(PY) tools/render.py build/frames 0 -1 30
 
 audio:
-	$(PY) tools/audio.py build/barrel.wav 10
+	$(PY) tools/audio.py build/barrel.wav 12
 
 video: frames audio
 	sh tools/encode.sh build/frames build/barrel.wav build/barrel.mp4

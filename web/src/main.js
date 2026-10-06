@@ -84,10 +84,10 @@ const lens = new ShaderPass({
 });
 composer.addPass(lens);
 
-// The shot: a camera low in the water facing the beach. The lip pitches over it and lands in front, the camera is
-// shut inside for a moment with only a small window open ahead-left, then it is carried out through that window
-// as the wave runs on. Each path is keyframes [time, value], eased through (no stops at the keys).
-export const LEN = 10.0;
+// The shot: on the face just ahead of the curl, looking down the line. The lip pitches over the camera, falls (fast,
+// it is in free fall) and lands on the right with a splash; inside, the camera races down the tube toward the eye
+// with the island in it; the spit blows it out onto the open face. Each path is keyframes [time, value], eased through.
+export const LEN = 12.0;
 const ss = (a, b, x) => { const k = Math.min(Math.max((x - a) / (b - a), 0), 1); return k * k * (3 - 2 * k); };
 function kf(K, t) {
   if (t <= K[0][0]) return K[0][1];
@@ -100,15 +100,15 @@ function kf(K, t) {
   return (2 * u3 - 3 * u2 + 1) * v0 + (u3 - 2 * u2 + u) * m0 + (-2 * u3 + 3 * u2) * v1 + (u3 - u2) * m1;
 }
 // how far the curl has gone where the camera is
-const PHI = [[0, 0.36], [3.0, 0.5], [3.4, 0.62], [4.0, 0.84], [4.6, 1.1], [5.4, 1.25], [6.0, 0.98], [6.6, 0.78], [7.2, 0.58], [7.8, 0.45], [8.5, 0.35], [10, 0.3]];
+const PHI = [[0, 0.12], [2.5, 0.3], [3.4, 0.5], [4.0, 0.72], [5.0, 1.0], [6.5, 1.25], [8.5, 1.3], [9.5, 0.95], [10.5, 0.45], [12, 0.3]];
 // where the camera is across the wave (z, toward the beach) and its height: out in front while the lip throws,
 // swept back under it as the wave comes on, then carried forward out through the window
-const CZ = [[0, 5.2], [3.2, 5.0], [4.3, 4.7], [6.0, 4.6], [6.6, 4.8], [7.2, 5.6], [7.8, 8.0], [8.5, 12.0], [10, 15.0]];
-const CY = [[0, 1.0], [3.2, 1.05], [4.3, 0.95], [6.0, 0.9], [7.0, 1.0], [8.5, 1.1], [10, 1.1]];
+const CZ = [[0, 4.2], [2.5, 3.8], [4.0, 3.0], [6.5, 2.8], [8.5, 2.9], [10.5, 3.6], [12, 5.0]];
+const CY = [[0, 1.2], [4.0, 1.0], [8.5, 1.0], [10.5, 1.2], [12, 1.4]];
 // where it looks: yaw from the beach toward the open end (+x), pitch up
-const YAW = [[0, 0.75], [3.2, 0.8], [4.3, 0.95], [6.0, 1.0], [6.6, 1.0], [7.2, 0.95], [7.8, 0.6], [8.5, 0.3], [10, 0.25]];
-const PITCH = [[0, 0.22], [3.2, 0.24], [4.3, 0.16], [6.0, 0.1], [7.0, 0.08], [8.5, 0.06], [10, 0.06]];
-const ROLL = [[0, -0.2], [4.3, -0.16], [7.2, -0.12], [8.5, -0.22], [10, -0.24]];
+const YAW = [[0, 1.25], [2.5, 1.2], [4.0, 1.32], [8.5, 1.37], [10.5, 1.4], [12, 1.42]];
+const PITCH = [[0, 0.32], [2.5, 0.35], [4.0, 0.24], [8.5, 0.2], [10.5, 0.12], [12, 0.1]];
+const ROLL = [[0, -0.06], [4.0, -0.04], [8.5, 0.03], [12, 0.0]];
 const ridePhi = (t) => kf(PHI, t);
 // how strongly the lip ahead-left throws before the rest (the slanted edge as it comes over)
 const PEAKA = [[0, 0], [10, 0]];
@@ -186,13 +186,13 @@ function frame(t) {
   PEAK.x0 = x; PEAK.amp = q.has('pa') ? +q.get('pa') : kf(PEAKA, t); PEAK.off = PEAK_OFF; PEAK.w = PEAK_W; PEAK.back = kf(PEAKB, t);
   wave.update(t, x);
   // two spits: one blows the rider out (9.6-12 s), one comes out of the tube while we look back (15.5-18.5 s)
-  spray.update(t, riderX(t), 0);
+  spray.update(t, riderX(t), ss(9.0, 10.8, t) * (1 - ss(10.8, 11.2, t)));
   lens.uniforms.uT.value = t;
-  lens.uniforms.uMist.value = 0.3 * ss(6.5, 6.9, t) * (1 - ss(7.0, 7.6, t));
+  lens.uniforms.uMist.value = 0.75 * ss(9.4, 9.9, t) * (1 - ss(10.3, 11.0, t));
   lens.uniforms.uDrops.value = 0;
   spray.u.uPx.value = renderer.domElement.height / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
   U.uT.value = t;
-  U.uMilk.value = 0.35 + 0.65 * ss(3.4, 4.3, t) * (1 - ss(7.0, 7.8, t));
+  U.uMilk.value = 0.35 + 0.65 * ss(3.4, 4.3, t) * (1 - ss(10.0, 10.8, t));
   U.uCam.value.copy(camera.position);
   skyMesh.position.copy(camera.position);
   composer.render();

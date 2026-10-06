@@ -40,7 +40,9 @@ function bez(p0, p1, p2, p3, u) {
 // Like a hand-drawn profile, each is two continuous outlines joined by a rounded tip:
 //   outer: from far behind, up the back, over the crest and along the top of the lip to its tip (9 points)
 //   inner: from the tip back along the lip's underside, over the tube's ceiling and down the wall to the trough (9)
-// The lip is thrown short and thick and the tube is an oval wider than it is tall. Between keyframes every point is
+// The lip is thrown short and thick and the tube is an oval wider than it is tall. Its tip falls freely: from the crest
+// (5.6 m) it drops 1 m in 0.45 s, 3.3 m by 0.82 s and lands at 1.0 s (y = 5.6 - 4.9 t^2), so with the break peeling at
+// PEEL/LPHI = 0.65 phi per second the keys bunch up toward the landing (0.3, 0.54, 0.66). Between keyframes every point is
 // interpolated with Catmull-Rom splines in phi (as in Surf's Up: sampled profiles, spline-interpolated).
 const KEYS = [
   { phi: -0.6,
@@ -49,18 +51,18 @@ const KEYS = [
   { phi: 0.3,
     outer: [[-40, 0], [-18, 0.35], [-7, 2.0], [-2.5, 4.4], [-0.4, 5.65], [1.4, 6.05], [2.7, 5.75], [3.4, 5.1], [3.7, 4.5]],
     inner: [[3.15, 4.4], [2.6, 5.0], [1.6, 5.15], [0.5, 4.7], [-0.3, 3.7], [-0.5, 2.4], [-0.1, 1.1], [0.8, 0.25], [2.2, 0.03]] },
-  { phi: 0.65,
+  { phi: 0.54,
     outer: [[-40, 0], [-18, 0.35], [-7, 2.1], [-2.5, 4.6], [-0.3, 5.8], [1.9, 6.1], [3.9, 5.6], [5.2, 4.1], [5.7, 2.3]],
     inner: [[5.05, 2.35], [4.6, 3.9], [3.3, 4.95], [1.6, 5.2], [0.0, 4.5], [-0.8, 3.0], [-0.6, 1.5], [0.3, 0.3], [1.9, 0.03]] },
-  { phi: 1.0,
-    outer: [[-40, 0], [-18, 0.35], [-7, 2.1], [-2.5, 4.6], [-0.3, 5.8], [2.1, 6.1], [4.5, 5.5], [6.2, 3.6], [6.7, 0.6]],
-    inner: [[6.05, 0.6], [5.6, 3.2], [4.2, 4.75], [2.2, 5.2], [0.2, 4.6], [-0.8, 3.0], [-0.6, 1.5], [0.3, 0.3], [1.9, 0.03]] },
-  { phi: 1.6,
-    outer: [[-40, 0], [-18, 0.35], [-7, 2.0], [-2.5, 4.5], [-0.3, 5.7], [2.1, 6.0], [4.6, 5.4], [6.4, 3.5], [6.9, 0.6]],
-    inner: [[6.2, 0.6], [5.8, 3.1], [4.4, 4.65], [2.3, 5.1], [0.2, 4.5], [-0.8, 2.9], [-0.6, 1.5], [0.3, 0.3], [1.9, 0.03]] },
-  { phi: 2.4,
-    outer: [[-40, 0], [-18, 0.35], [-7, 1.9], [-2.5, 4.3], [-0.3, 5.5], [2.1, 5.8], [4.6, 5.2], [6.4, 3.3], [6.9, 0.6]],
-    inner: [[6.2, 0.6], [5.8, 2.9], [4.4, 4.45], [2.3, 4.9], [0.2, 4.3], [-0.8, 2.8], [-0.6, 1.5], [0.3, 0.3], [1.9, 0.03]] },
+  { phi: 0.66,
+    outer: [[-40, 0], [-18, 0.35], [-7, 2.1], [-2.5, 4.6], [-0.3, 5.8], [2.1, 6.1], [4.5, 5.5], [6.2, 3.6], [6.7, 0.22]],
+    inner: [[6.05, 0.22], [5.6, 3.2], [4.2, 4.75], [2.2, 5.2], [0.2, 4.6], [-0.8, 3.0], [-0.6, 1.5], [0.3, 0.3], [1.9, 0.03]] },
+  { phi: 1.2,
+    outer: [[-40, 0], [-18, 0.35], [-7, 2.0], [-2.5, 4.5], [-0.3, 5.7], [2.1, 6.0], [4.6, 5.4], [6.4, 3.5], [6.9, 0.22]],
+    inner: [[6.2, 0.22], [5.8, 3.1], [4.4, 4.65], [2.3, 5.1], [0.2, 4.5], [-0.8, 2.9], [-0.6, 1.5], [0.3, 0.3], [1.9, 0.03]] },
+  { phi: 2.0,
+    outer: [[-40, 0], [-18, 0.35], [-7, 1.9], [-2.5, 4.3], [-0.3, 5.5], [2.1, 5.8], [4.6, 5.2], [6.4, 3.3], [6.9, 0.22]],
+    inner: [[6.2, 0.22], [5.8, 2.9], [4.4, 4.45], [2.3, 4.9], [0.2, 4.3], [-0.8, 2.8], [-0.6, 1.5], [0.3, 0.3], [1.9, 0.03]] },
 ];
 const NB = 50, NL = 140, NT = 13, NF = 90, NS = 44;     // points: back, lip (each side), tip, wall, sea
 export const NSEC = NB + NL + NT + NL + NF + NS;
@@ -152,7 +154,7 @@ export function section(phi, w = 0) {
   }
   for (let i = 0; i < NL; i++) {
     P.push([under[i][0], under[i][1]]); TH.push(thk(NL - 1 - i)); PART.push(2);
-    FOAM.push(smooth(0.9, 1, 1 - i / (NL - 1)) * 0.08 * curl);
+    FOAM.push(Math.max(smooth(0.9, 1, 1 - i / (NL - 1)) * 0.08 * curl, smooth(0.62, 0.8, p) * 0.5 * smooth(0.8, 0.1, under[i][1])));   // landed: its foot is churned white
   }
   for (let i = 0; i < NF; i++) { P.push([wall[i][0], wall[i][1]]); TH.push(lerp(thk(0), 3.0, Math.pow(i / (NF - 1), 0.7))); PART.push(3); FOAM.push(0); }
   // the sea in front, out toward the beach (under the lip where it has landed)
@@ -174,12 +176,21 @@ export function section(phi, w = 0) {
     }
   }
   const iTip = NB + NL + (NT >> 1);
+  // where the lip has landed the water is churned white: a band of whitewater on the sea around the landing
+  {
+    const land = smooth(0.62, 0.8, p), tz = P[NB + NL + (NT >> 1)][0];
+    if (land > 0) for (let i = 0; i < P.length; i++) {
+      if (PART[i] !== 4) continue;
+      const d = P[i][0] - tz;
+      FOAM[i] = Math.max(FOAM[i], land * 0.6 * smooth(-1.4, -0.3, d) * (1 - smooth(0.8, 3.0, d)));
+    }
+  }
   const tipZ = P[iTip][0];
-  const closed = smooth(0.85, 1.05, p) * (1 - smooth(2.1, 2.6, p));
+  const closed = smooth(0.6, 0.7, p) * (1 - smooth(2.1, 2.6, p));
   // inside a closed tube every surface sees the tube, not the sky: the lip's underside all over, the wall and the
   // floor up to where the lip has landed
   const OCC = P.map(([z], i) => (PART[i] === 2 ? closed : PART[i] >= 3 ? closed * smooth(tipZ + 1.2, tipZ - 0.6, z) : 0));
-  return { P, TH, PART, FOAM, OCC, lipTip: P[iTip], curl };
+  return { P, TH, PART, FOAM, OCC, lipTip: P[iTip], iTip, curl };
 }
 
 // the swept surface: rows along x, NSEC points across
@@ -190,10 +201,11 @@ export class Wave {
     const n = rows * NSEC;
     const g = new THREE.BufferGeometry();
     this.pos = new Float32Array(n * 3); this.nrm = new Float32Array(n * 3);
-    this.th = new Float32Array(n); this.part = new Float32Array(n); this.foam = new Float32Array(n); this.occ = new Float32Array(n); this.uv = new Float32Array(n * 2);
+    this.flow = new Float32Array(n); this.th = new Float32Array(n); this.part = new Float32Array(n); this.foam = new Float32Array(n); this.occ = new Float32Array(n); this.uv = new Float32Array(n * 2);
     g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3));
     g.setAttribute('normal', new THREE.BufferAttribute(this.nrm, 3));
     g.setAttribute('thick', new THREE.BufferAttribute(this.th, 1));
+    g.setAttribute('flow', new THREE.BufferAttribute(this.flow, 1));
     g.setAttribute('part', new THREE.BufferAttribute(this.part, 1));
     g.setAttribute('foam', new THREE.BufferAttribute(this.foam, 1));
     g.setAttribute('occ', new THREE.BufferAttribute(this.occ, 1));
@@ -216,7 +228,7 @@ export class Wave {
   }
 
   update(t, xc) {
-    const { pos, th, part, foam, occ, uv } = this;
+    const { pos, th, part, foam, occ, uv, flow } = this;
     for (let r = 0; r < this.rows; r++) {
       const x = this.rowX(r, xc);
       // slow variation along the crest so the lip is not a perfect extrusion
@@ -231,9 +243,12 @@ export class Wave {
         th[i] = s.TH[c]; part[i] = s.PART[c]; foam[i] = s.FOAM[c]; occ[i] = s.OCC[c];
         uv[i * 2] = x; uv[i * 2 + 1] = arc;
       }
+      // how far along the section each point is from the lip's tip (the water in the lip runs toward it)
+      const a0 = uv[(r * NSEC + s.iTip) * 2 + 1];
+      for (let c = 0; c < NSEC; c++) { const i = r * NSEC + c; flow[i] = Math.abs(uv[i * 2 + 1] - a0); }
     }
     this.geo.attributes.position.needsUpdate = true;
-    for (const a of ['thick', 'part', 'foam', 'occ', 'uv']) this.geo.attributes[a].needsUpdate = true;
+    for (const a of ['thick', 'part', 'foam', 'occ', 'uv', 'flow']) this.geo.attributes[a].needsUpdate = true;
     this.geo.computeVertexNormals();
     this.geo.computeBoundingSphere();
   }

@@ -75,8 +75,8 @@ vec3 skyCol(vec3 d){
   float span = smoothstep(-0.5, -0.1, az) * (1. - smoothstep(2.6, 3.05, az));
   float f1 = fbm(vec2(az * 1.7, 0.5)), f2 = vnoise(vec2(az * 7.0, 2.3)) * 0.7 + vnoise(vec2(az * 15.0, 6.1)) * 0.3, f3 = vnoise(vec2(az * 40., 4.1));
   float sharp = 1. - abs(f2 * 2. - 1.);
-  float near = 1.9 * (2.0 + 8.0 * smoothstep(0.3, 0.75, f1) + 2.0 * sharp * sharp * smoothstep(0.3, 0.6, f1) + 0.1 * f3) * span;
-  float far = 1.3 * (5.0 + 8.0 * smoothstep(0.25, 0.7, fbm(vec2(az * 1.7, 7.7))) + 0.2 * f3) * span;
+  float near = 1.9 * mix(0.35, 1., smoothstep(0.15, 0.9, az)) * (2.0 + 8.0 * smoothstep(0.3, 0.75, f1) + 2.0 * sharp * sharp * smoothstep(0.3, 0.6, f1) + 0.1 * f3) * span;
+  float far = 1.3 * mix(0.45, 1., smoothstep(0.15, 0.9, az)) * (5.0 + 8.0 * smoothstep(0.25, 0.7, fbm(vec2(az * 1.7, 7.7))) + 0.2 * f3) * span;
   if (e > 0. && e < far) {
     float k = e / far;
     vec3 fm = mix(srgb2lin(vec3(112, 132, 150)), srgb2lin(vec3(150, 168, 182)), k * 0.6 + 0.2 * fbm(vec2(az * 20., e * 2.)));
@@ -101,13 +101,13 @@ vec3 skyCol(vec3 d){
 `;
 
 export const waveVert = /* glsl */`
-attribute float thick; attribute float part; attribute float foam; attribute float occ;
-varying vec3 vW; varying vec3 vN; varying float vTh; varying float vPart; varying float vFoam; varying vec2 vUv; varying float vOcc;
+attribute float thick; attribute float flow; attribute float part; attribute float foam; attribute float occ;
+varying vec3 vW; varying vec3 vN; varying float vTh; varying float vPart; varying float vFoam; varying vec2 vUv; varying float vOcc; varying float vFlow;
 void main(){
   vOcc = occ;
   vec4 w = modelMatrix * vec4(position, 1.);
   vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal);
-  vTh = thick; vPart = part; vFoam = foam; vUv = uv;
+  vFlow = flow; vTh = thick; vPart = part; vFoam = foam; vUv = uv;
   gl_Position = projectionMatrix * viewMatrix * w;
 }`;
 
@@ -117,7 +117,7 @@ uniform vec3 uCam;
 uniform vec3 uSunCol;
 uniform float uDbg;
 uniform float uMilk;   // how much air shows in the lip: full from inside the tube, less seen from outside
-varying vec3 vW; varying vec3 vN; varying float vTh; varying float vPart; varying float vFoam; varying vec2 vUv; varying float vOcc;
+varying vec3 vW; varying vec3 vN; varying float vTh; varying float vPart; varying float vFoam; varying vec2 vUv; varying float vOcc; varying float vFlow;
 ${noise}
 ${sky}
 void main(){
@@ -169,8 +169,14 @@ void main(){
   vec3 bp = vW * 1.3 + vec3(-uT * 5.2 * surge, uT * 2.2 * (surge - 0.6), uT * 1.6);
   float fb = px * 1.3;
   float b1 = fbm3F(bp, fb), b2 = fbm3F(bp * 1.7 + vec3(7.1, 2.2, 4.0), fb * 1.7), b3 = fbm3F(bp * 3.1 + vec3(2.3, 6.6, 1.1), fb * 3.1);
+  // in the lip the water is thrown toward the tip at ~9 m/s: its lumps ride along the section toward the tip, fast
+  float pf = length(fwidth(vec2(vUv.x, vFlow)));
+  vec2 fq = vec2(vUv.x * 1.3, (vFlow + uT * 9.0) * 1.3);
+  b1 = mix(b1, fbmF(fq, pf * 1.3), lip);
+  b2 = mix(b2, fbmF(fq * 1.7 + vec2(7.1, 2.2), pf * 2.2), lip);
+  b3 = mix(b3, fbmF(fq * 3.1 + vec2(2.3, 6.6), pf * 4.0), lip);
   // swirls: the water runs round the curl, so the sheet carries long soft streaks along it (filtered: no aliasing)
-  float sw = fbmF(vec2(vUv.x * 1.6 + b1 * 1.5, vUv.y * 0.22 - uT * 2.6 * surge), pu * 1.6);
+  float sw = fbmF(vec2(vUv.x * 1.6 + b1 * 1.5, mix(vUv.y, vFlow, lip) * 0.22 + uT * mix(-2.6 * surge, 2.0, lip)), pu * 1.6);
   n = normalize(n + (t1 * (b1 - 0.5) + t2 * (b2 - 0.5)) * 0.07 * lip + t1 * (sw - 0.5) * 0.015 * lip);
   float aer = lip * (0.3 + 0.45 * smoothstep(0.25, 0.85, b1 * 0.85 + b3 * 0.15));
   float ndv = max(dot(n, v), 0.);
@@ -198,7 +204,7 @@ void main(){
   vec3 body = vec3(0.02, 0.05, 0.12) * (0.7 + 0.3 * max(n.y, 0.)) + vec3(0.03, 0.1, 0.2) * exp(-th * 0.4) * (1. + 0.6 * lip);
   vec3 col = mix(body + glow, refl, F);
   // air in the thin sheet scatters light: milky blue-white patches
-  col = mix(col, vec3(0.66, 0.72, 0.72) * (0.9 + 0.1 * b1 + 0.1 * b3) * (0.9 + 0.2 * phase), (0.08 + 0.5 * aer) * lip * exp(-thv * 0.35) * uMilk);
+  col = mix(col, vec3(0.66, 0.8, 0.84) * (0.9 + 0.1 * b1 + 0.1 * b3) * (0.9 + 0.2 * phase), (0.08 + 0.5 * aer) * lip * exp(-thv * 0.35) * uMilk);
   // the ripples' relief over the whole sheet (light bent and shaded by them)
   col *= mix(1., clamp(0.97 + 0.5 * (ch - 0.5) + 0.25 * (ch3 - 0.5), 0.78, 1.15), lip * 0.8);
   // the Sun's glints

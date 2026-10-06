@@ -1,7 +1,11 @@
 // Spray and mist. Drops are thrown off the lip's tip along its direction of travel and fall under gravity; where the
 // lip lands, a sheet of splash goes up; fine mist hangs in the tube and catches the light through the lip.
 // Each drop is a pure function of its own seed and the time (no simulation state), so any frame can be drawn alone.
-import { section, phiAt, SCALE, bendZ } from './wave.js';
+import { section, phiAt, SCALE, bendZ, breakX, LPHI, PEEL } from './wave.js';
+
+// where along the section the lip lands, and when each x along the wave lands (phi reaches the landed key)
+const LAND_PHI = 0.66;
+const landT = (x) => (x + 10 + LAND_PHI * LPHI) / PEEL;   // inverse of phi = (breakX(t) - x) / LPHI
 
 const vert = /* glsl */`
 attribute float size; attribute float alpha;
@@ -28,7 +32,8 @@ void main(){
 function hash(i) { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); }
 
 export class Spray {
-  constructor(THREE, n = 17500) {
+  constructor(THREE, n = 30000) {
+    this.landZ = section(LAND_PHI).lipTip[0];
     this.n = n;
     const g = new THREE.BufferGeometry();
     this.pos = new Float32Array(n * 3); this.size = new Float32Array(n); this.alpha = new Float32Array(n);
@@ -101,6 +106,31 @@ export class Spray {
       const fade = (1 - age / life) * Math.min(1, tp.curl * 2);
       if (fine) put(x, y, z, 0.01 + 0.025 * hash(i * 5.5), 0.6 * fade);
       else put(x, y, z, 0.18 + 0.35 * hash(i * 8.1) + age * 0.4, 0.07 * fade);
+    }
+    // the splash-up: where the lip lands the water bursts back up out of the trough. Each drop leaves the landing line
+    // a moment after it lands there (most at once, a few later), up at 3-9 m/s, mostly toward the beach, some back
+    // into the tube; one in four is a soft puff of mist that rises slower and spreads
+    const N6 = 8000, landZ = this.landZ;
+    for (let i = 0; i < N6; i++) {
+      const x0 = xc - 22 + hash(i * 5.13) * 34;           // around and behind the camera; far ahead it would read as a bar
+      const delay = Math.pow(hash(i * 2.71), 2.2) * 1.4;
+      const age = t - landT(x0) - delay;
+      const mist = i % 4 === 0;
+      const life = mist ? 2.2 : 1.3;
+      if (age < 0 || age > life) continue;
+      const kick = 1 - 0.6 * delay / 1.4;
+      const vy = (3 + 6 * hash(i * 3.31)) * kick * (mist ? 0.45 : 1);
+      const back = hash(i * 4.07) < 0.55;             // the landing throws as much back into the tube as out
+      const vz = back ? -(1 + 4.5 * hash(i * 6.61)) * kick : (1 + 4 * hash(i * 6.61)) * kick;
+      const z0 = landZ + bendZ(x0) + (hash(i * 8.23) - 0.5) * 1.2;
+      const drag = mist ? 1 / (1 + 0.8 * age) : 1;
+      const y = 0.2 + vy * age * drag - (mist ? 1.2 : 4.9) * age * age;
+      if (y < 0.02) continue;
+      const x = x0 + (hash(i * 9.41) - 0.5) * 1.2 * age;
+      const z = z0 + vz * age * drag;
+      const fade = 1 - age / life;
+      if (mist) put(x, y, z, 0.5 + 1.4 * age + 0.6 * hash(i * 1.77), 0.07 * fade);
+      else put(x, y, z, 0.025 + 0.05 * hash(i * 7.07), 0.5 * fade);
     }
     // mist in the tube: slow, faint, larger
     const N2 = 2600;
