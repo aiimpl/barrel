@@ -1,7 +1,7 @@
 # How breaking waves are made (research notes)
 
 What the people who have built a barrel before actually did, and what this project takes from it.
-The papers and the reference footage are not in this repository (they belong to others); the links are below.
+The papers are not in this repository (they belong to others); the links are below.
 
 ## Surf's Up (Sony Pictures Imageworks, SIGGRAPH 2007)
 
@@ -30,13 +30,17 @@ The papers and the reference footage are not in this repository (they belong to 
 - The tube is an oval wider than it is tall.
 - Only the lip's edge and its spray are white; the wall is clear, deep blue-green water.
 
-## What this project does with it
+## What was tried here
 
-- Cross-sections are keyframes taken from the real wave (crest, a thick lip as a centreline plus thickness, the wall
-  under it, the trough), interpolated through with Catmull-Rom splines in phi (how far the break has gone), not
-  invented by formula. Parts meet with matching tangents.
-- Lesson: when it does not look right, do not stack corrections on a wrong base shape (bends, steps, flips each broke
-  something else). Fix the base from reference.
+- Keyframed cross-sections spline-interpolated in phi (the Surf's Up way) gave the right short, thick lip and wide
+  tube, but the cut built on it read worse than the original swept section, so the published version keeps the swept
+  section and takes the rest from these notes.
+- What made the water stop looking like syrup, in order of effect: a lens that squeezed the edges instead of
+  stretching them (the stretch smeared every pattern radially); ripples carried by the flow instead of patterns
+  stretched along it; no regular plane-wave chop on a curved surface (it reads as rings); value noise replaced by
+  gradient noise for slopes (value noise shows its grid); spray born at places on the wave, not around the camera.
+- Lesson: when it does not look right, do not stack corrections on a wrong base (bends, steps, flips each broke
+  something else). Measure first (debug views of normals, parts, reflection), then fix the cause.
 
 ## Sources
 
@@ -48,4 +52,3 @@ The papers and the reference footage are not in this repository (they belong to 
 - Realistic breaking wave (Unity Discussions) — https://discussions.unity.com/t/realistic-breaking-wave/748291
 - A Procedural Model for Interactive Animation of Breaking Ocean Waves — https://www.researchgate.net/publication/221546554_A_Procedural_Model_for_Interactive_Animation_of_Breaking_Ocean_Waves
 - Procedural Modelling and Animation of Breaking Waves (MSc thesis) — https://nccastaff.bournemouth.ac.uk/jmacey/MastersProject/MSc09/Fan/msc_thesis_finellafan.pdf
-- Reference footage used for comparison (not redistributed): youtube.com/watch?v=GZlFBwxFmmg, youtube.com/watch?v=jGxE1soC1hI
