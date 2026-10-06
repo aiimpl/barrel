@@ -1,7 +1,9 @@
 // Spray and mist. Drops are thrown off the lip's tip along its direction of travel and fall under gravity; where the
 // lip lands, a sheet of splash goes up; fine mist hangs in the tube and catches the light through the lip.
 // Each drop is a pure function of its own seed and the time (no simulation state), so any frame can be drawn alone.
-import { section, phiAt, SCALE } from './wave.js';
+import { section, phiAt, SCALE, breakX, LPHI } from './wave.js';
+// every particle is born at a place on the wave (by its curl phi, measured back from the break at its birth), never
+// relative to the camera: anything placed relative to the camera travels with it and clings to the view
 
 const vert = /* glsl */`
 attribute float size; attribute float alpha;
@@ -11,7 +13,7 @@ void main(){
   vec4 mv = modelViewMatrix * vec4(position, 1.);
   gl_Position = projectionMatrix * mv;
   float px = size * uPx / max(-mv.z, 0.05);
-  vS = px; vA = alpha;
+  vS = px; vA = alpha * smoothstep(0.5, 2.0, -mv.z);   // a drop right at the lens is not a crisp white disc: it fades
   gl_PointSize = clamp(px, 1.0, 64.);
 }`;
 const frag = /* glsl */`
@@ -44,10 +46,10 @@ export class Spray {
 
   // the lip tip at x (cached per frame on a 0.25 m grid)
   tip(x, t) {
-    const key = Math.round(x * 4);
+    const key = Math.round(x * 4) * 100000 + Math.round(t * 20);
     if (this.cache.has(key)) return this.cache.get(key);
-    const s = section(phiAt(key / 4, t));
-    const v = { z: s.lipTip[0], y: s.lipTip[1], curl: s.curl, phi: phiAt(key / 4, t) };
+    const s = section(phiAt(Math.round(x * 4) / 4, Math.round(t * 20) / 20));
+    const v = { z: s.lipTip[0], y: s.lipTip[1], curl: s.curl, phi: phiAt(x, t) };
     this.cache.set(key, v);
     return v;
   }
@@ -63,7 +65,7 @@ export class Spray {
     for (let i = 0; i < N1; i++) {
       const life = 0.9, born = t - hash(i * 3.1) * life * 1.0;
       const age = t - born;
-      const x0 = xc - 14 + hash(i * 7.7) * 30;
+      const x0 = breakX(born) - LPHI * (0.1 + 2.2 * hash(i * 7.7));
       const tp = this.tip(x0, born);
       if (tp.curl < 0.15) continue;
       const vz = 2.2 + 1.5 * hash(i * 2.3), vy = 0.4 + 1.2 * hash(i * 5.9), vx = (hash(i * 9.1) - 0.5) * 1.2;
@@ -77,7 +79,7 @@ export class Spray {
     for (let i = 0; i < N4; i++) {
       const life = 1.6, born = t - hash(i * 8.3) * life;
       const age = t - born;
-      const x0 = xc - 18 + hash(i * 3.7) * 40;
+      const x0 = breakX(born) - LPHI * (-1.6 + 2.6 * hash(i * 3.7));
       const tp = this.tip(x0, born);
       if (tp.phi < -1.6 || tp.curl > 0.95) continue;     // all along the crest: the unbroken shoulder feathers too
       const cz = tp.z - 0.3, cy = tp.y + 0.3;
@@ -88,7 +90,7 @@ export class Spray {
     // mist in the tube: slow, faint, larger
     const N2 = 2600;
     for (let i = 0; i < N2; i++) {
-      const x = xc - 6 + ((hash(i * 1.7) * 16 + t * 0.6) % 16);
+      const x = breakX(t) - LPHI * 0.9 - ((hash(i * 1.7) * 22 + t * 0.6) % 22);   // hangs in the tube, which runs on with the peel
       const tp = this.tip(x, t);
       if (tp.curl < 0.6) continue;
       const z = 0.6 * SCALE + hash(i * 3.3) * (tp.z - 0.6 * SCALE);
@@ -102,11 +104,11 @@ export class Spray {
         const lag = hash(i * 2.9) * 0.5;
         const p = Math.max(0, Math.min(1, (spit - lag) / (1 - lag * 0.5)));
         if (p <= 0) continue;
-        const x = xc - 4 + p * 24 + (hash(i * 4.1) - 0.5) * 3;
+        const x = breakX(t) - 1.45 * LPHI + p * 24 + (hash(i * 4.1) - 0.5) * 3;   // blown from deep in the tube out through the eye
         const r = (0.15 + 1.05 * Math.sqrt(hash(i * 5.3))) * (0.6 + 0.9 * p), th = hash(i * 6.7) * 6.283;
         const mist = i % 5 === 0;     // one in five is a soft puff of mist, the rest fine drops
         put(x, Math.max(0.1, 1.25 * SCALE + r * SCALE * Math.sin(th)), 1.95 * SCALE + r * SCALE * Math.cos(th),
-          mist ? 0.35 + 0.6 * p : 0.05 + 0.08 * hash(i * 7.3), mist ? 0.08 * (1 - p) : 0.8 * (1 - p * 0.7));
+          mist ? 0.35 + 0.6 * p : 0.02 + 0.035 * hash(i * 7.3), mist ? 0.08 * (1 - p) : 0.8 * (1 - p * 0.7));
       }
     }
     for (; k < this.n; k++) alpha[k] = 0;
